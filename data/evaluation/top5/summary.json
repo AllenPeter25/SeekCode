@@ -1,0 +1,8 @@
+{
+  "metric": "precision_at_k",
+  "k": 5,
+  "track_count": 999,
+  "mean_precision_at_k": 0.533933933933934,
+  "relevance": "same_genre",
+  "query_excluded": true
+}

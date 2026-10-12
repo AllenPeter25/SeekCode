@@ -1,0 +1,7 @@
+experiment,groups,pca_components,whiten,dimensions,track_count,k,precision_at_k,random_precision_at_k
+mfcc_only,mfcc,,False,40,999,10,0.5027027027027028,0.09909909909909913
+all_no_pca,"mfcc,spectral,energy",,False,50,999,10,0.48488488488488485,0.09909909909909913
+mfcc_spectral,"mfcc,spectral",,False,48,999,10,0.48348348348348347,0.09909909909909913
+all_pca,"mfcc,spectral,energy",40.0,True,40,999,10,0.4782782782782783,0.09909909909909913
+spectral_only,spectral,,False,8,999,10,0.31761761761761764,0.09909909909909913
+energy_only,energy,,False,2,999,10,0.1907907907907908,0.09909909909909913

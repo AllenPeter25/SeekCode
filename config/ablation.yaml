@@ -1,0 +1,50 @@
+# seekaudio — ablation study configurations
+# Each entry is a named config override; all other settings from default.yaml apply.
+
+configs:
+  A_mfcc_only:
+    space: {pca_components: null}
+    features:
+      groups: {mfcc: true, spectral: false, rhythm: false, energy: false, tonal: false}
+
+  B_spectral_only:
+    space: {pca_components: null}
+    features:
+      groups: {mfcc: false, spectral: true, rhythm: false, energy: false, tonal: false}
+
+  C_rhythm_energy:
+    space: {pca_components: null}
+    features:
+      groups: {mfcc: false, spectral: false, rhythm: true, energy: true, tonal: false}
+
+  D_mfcc_spectral:
+    space: {pca_components: null}
+    features:
+      groups: {mfcc: true, spectral: true, rhythm: false, energy: false, tonal: false}
+
+  E_all_equal:
+    space: {pca_components: null}
+    features:
+      groups: {mfcc: true, spectral: true, rhythm: true, energy: true, tonal: false}
+      weights: {mfcc: 1.0, spectral: 1.0, rhythm: 1.0, energy: 1.0, tonal: 1.0}
+
+  F_all_tuned:
+    space: {pca_components: null}
+    features:
+      groups: {mfcc: true, spectral: true, rhythm: true, energy: true, tonal: false}
+      weights: {mfcc: 1.0, spectral: 0.8, rhythm: 1.2, energy: 0.6, tonal: 1.0}
+
+  G_all_pca:
+    features:
+      groups: {mfcc: true, spectral: true, rhythm: true, energy: true, tonal: false}
+      weights: {mfcc: 1.0, spectral: 1.0, rhythm: 1.0, energy: 1.0, tonal: 1.0}
+    space:
+      pca_components: 40
+      whiten: true
+
+  H_mean_only:
+    space: {pca_components: null}
+    features:
+      groups: {mfcc: true, spectral: true, rhythm: true, energy: true, tonal: false}
+    pooling:
+      use_std: false    # mean pooling only, no std

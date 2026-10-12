@@ -1,0 +1,47 @@
+{
+  "audio": {
+    "sample_rate": 22050,
+    "duration": 30,
+    "mono": true
+  },
+  "features": {
+    "n_mfcc": 20,
+    "n_fft": 2048,
+    "hop_length": 512,
+    "n_chroma": 12,
+    "n_mels": 128,
+    "groups": {
+      "mfcc": true,
+      "spectral": true,
+      "rhythm": true,
+      "energy": true,
+      "tonal": false
+    },
+    "weights": {
+      "mfcc": 1.0,
+      "spectral": 1.0,
+      "rhythm": 1.0,
+      "energy": 1.0,
+      "tonal": 1.0
+    }
+  },
+  "space": {
+    "pca_components": null,
+    "whiten": true,
+    "l2_normalize": true
+  },
+  "retrieval": {
+    "k": 10
+  },
+  "paths": {
+    "audio_dir": "data/raw",
+    "manifest": "data/manifest.parquet",
+    "features_dir": "data/features",
+    "feature_spec_version": 2,
+    "space_dir": "data/space",
+    "evaluation_dir": "data/evaluation"
+  },
+  "pooling": {
+    "use_std": true
+  }
+}

@@ -1,0 +1,11 @@
+genre,track_count,mean_precision_at_k,k
+blues,100,0.674,5
+classical,100,0.812,5
+country,100,0.38,5
+disco,100,0.354,5
+hiphop,100,0.48,5
+jazz,99,0.5575757575757576,5
+metal,100,0.68,5
+pop,100,0.65,5
+reggae,100,0.42200000000000004,5
+rock,100,0.33,5

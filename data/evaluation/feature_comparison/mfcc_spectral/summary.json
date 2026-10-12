@@ -1,0 +1,11 @@
+{
+  "metric": "precision_at_k",
+  "k": 10,
+  "track_count": 999,
+  "mean_precision_at_k": 0.48348348348348347,
+  "relevance": "same_genre",
+  "query_excluded": true,
+  "random_baseline_method": "expected_uniform_retrieval_without_replacement",
+  "random_precision_at_k": 0.09909909909909913,
+  "lift_over_random": 4.878787878787877
+}

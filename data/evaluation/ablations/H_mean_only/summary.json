@@ -1,0 +1,15 @@
+{
+  "metric": "precision_at_k",
+  "k": 10,
+  "track_count": 999,
+  "mean_precision_at_k": 0.42612612612612616,
+  "relevance": "same_genre",
+  "query_excluded": true,
+  "evaluation_scope": "catalog_evaluation_with_catalog_fitted_transforms",
+  "mean_recall_at_k": 0.04307193196082085,
+  "mean_average_precision_at_k": 0.33539849373182706,
+  "mean_ndcg_at_k": 0.454526710031499,
+  "random_baseline_method": "expected_uniform_retrieval_without_replacement",
+  "random_precision_at_k": 0.09909909909909913,
+  "lift_over_random": 4.299999999999999
+}

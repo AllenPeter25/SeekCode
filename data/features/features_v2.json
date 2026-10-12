@@ -1,0 +1,13 @@
+{
+  "feature_spec_version": 2,
+  "extraction_settings": {
+    "sample_rate": 22050,
+    "duration": 30,
+    "n_mfcc": 20,
+    "n_fft": 2048,
+    "hop_length": 512,
+    "n_mels": 128,
+    "include_rhythm": true,
+    "include_tonal": false
+  }
+}
