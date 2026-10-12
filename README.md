@@ -9,7 +9,7 @@ using measurable sound characteristics rather than artist names or listening his
 We built a complete workflow that prepares an audio dataset, extracts musical
 features, creates a searchable feature space, and evaluates the retrieved matches.
 The local Streamlit demo lets visitors upload audio or try the supplied
-"Sweet Child O' Mine" sample. It displays an estimated genre, 12 technical audio
+"Sweet Child O' Mine" sample. It displays an estimated genre, 14 technical audio
 measurements, and a downloadable Mel spectrogram of the analyzed excerpt.
 
 What has been implemented:
@@ -27,6 +27,8 @@ What has been implemented:
   eight feature ablations, saved reports, and comparison plots.
 - A simple web demo: estimated genre from nearest-match voting, audio preview,
   technical measurements, and a Mel spectrogram using the same extraction settings.
+  Librosa supplies three display analyses: spectral-flux tempo estimation,
+  spectral flatness, and spectral contrast.
 - Reproducible command-line stages, saved models, and automated tests.
 
 The current combined-feature PCA pipeline achieves **Precision@10 of 0.4862**,
@@ -164,6 +166,13 @@ not numerically interchangeable with Librosa's default Slaney MFCC settings.
 Spectral features use magnitude weighting. Rhythm uses positive RMS changes and
 autocorrelation within 40–200 BPM; half-time and double-time ambiguity remains.
 Tonal features use FFT pitch-class aggregation, not harmonic source separation.
+
+The UI tempo is estimated separately with Librosa from a log-power spectral-flux
+onset envelope. It also displays Librosa spectral flatness and spectral contrast.
+These display measurements do not replace the stored version 2 retrieval features,
+so the existing scaler, PCA model, evaluation scores, and dataset vectors remain
+compatible. MFCC extraction and the displayed Mel spectrogram retain their custom
+NumPy implementation.
 
 Numeric columns are standardized, groups normalized separately, weighted,
 optionally reduced and whitened with PCA, then optionally L2 normalized. Cosine

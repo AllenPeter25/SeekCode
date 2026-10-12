@@ -58,7 +58,7 @@ def configure_page() -> None:
 def update_upload_state(audio_bytes) -> None:
     signature = None
     if audio_bytes is not None:
-        signature = sha256(audio_bytes).hexdigest()
+        signature = "librosa-v1:" + sha256(audio_bytes).hexdigest()
     if st.session_state.get("query_signature") != signature:
         st.session_state.pop("analysis", None)
         st.session_state["query_signature"] = signature
@@ -116,7 +116,7 @@ def show_audio_characteristics(analysis: dict) -> None:
         ("Channels", channel_label, "Original audio channel layout."),
     ])
     show_metric_row([
-        ("Estimated tempo", tempo_label, "Approximate rate of recurring energy increases."),
+        ("Estimated tempo", tempo_label, "Librosa tempo estimate from a spectral-flux onset envelope. Half-time and double-time ambiguity can occur."),
         ("Spectral brightness", f"{analysis['spectral_centroid_hz']:.0f} Hz", "Average magnitude-weighted frequency center."),
         ("RMS energy", f"{analysis['rms_energy']:.3f}", "Average short-window signal strength, not perceptual loudness in LUFS."),
     ])
@@ -129,6 +129,10 @@ def show_audio_characteristics(analysis: dict) -> None:
         ("Sample peak level", peak_label, "Highest sample in the prepared mono excerpt, relative to full scale. Not true peak."),
         ("Energy variation", f"{analysis['energy_variation']:.3f}", "Standard deviation of short-window RMS energy."),
         ("Onset strength", onset_label, "Average positive change in short-window RMS energy."),
+    ])
+    show_metric_row([
+        ("Spectral flatness", f"{analysis['spectral_flatness']:.3f}", "Librosa measure of spectral noisiness: values nearer zero indicate concentrated tonal energy, while values nearer one indicate a flatter spectrum. Silence is displayed as zero."),
+        ("Spectral contrast", f"{analysis['spectral_contrast_db']:.1f} dB", "Librosa measure of the difference between spectral peaks and valleys, averaged over frequency bands and time."),
     ])
     duration = analysis["analysis_duration"]
     st.caption(

@@ -1,8 +1,11 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 from .features.audio import load_audio
 from .features.extract import extract_waveform_features
+from .features.librosa_analysis import extract_librosa_characteristics
 from .ingest import read_audio_metadata
 from .retrieval import add_track_details, search_feature_record
 from .viz import render_mel_spectrogram
@@ -36,12 +39,20 @@ def analyze_audio(audio_path, vectors: pd.DataFrame, models: dict, manifest: pd.
     results = search_feature_record(features, vectors, models, k=10)
     matches = add_track_details(results, manifest)
     peak = float(np.max(np.abs(waveform)))
+    librosa_features = extract_librosa_characteristics(
+        waveform,
+        sample_rate=settings["sample_rate"],
+        n_fft=settings["n_fft"],
+        hop_length=settings["hop_length"],
+    )
     return {
         "genre": estimate_genre(matches),
         "duration": metadata["duration"],
         "sample_rate": metadata["sample_rate"],
         "channels": metadata["channels"],
-        "tempo_bpm": features.get("rhythm_tempo_bpm"),
+        "tempo_bpm": librosa_features["librosa_tempo_bpm"],
+        "spectral_flatness": librosa_features["spectral_flatness"],
+        "spectral_contrast_db": librosa_features["spectral_contrast_db"],
         "spectral_centroid_hz": features["spectral_centroid_mean"],
         "rms_energy": features["energy_rms_mean"],
         "peak_dbfs": float(20 * np.log10(peak)) if peak > 0 else None,
@@ -56,5 +67,4 @@ def analyze_audio(audio_path, vectors: pd.DataFrame, models: dict, manifest: pd.
             settings["hop_length"], settings["n_mels"],
         ),
     }
-from pathlib import Path
 
