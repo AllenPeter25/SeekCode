@@ -1,0 +1,44 @@
+from pathlib import Path
+import shutil
+
+
+def prepare_deployment() -> Path:
+    project_dir = Path(__file__).resolve().parent.parent
+    output_dir = project_dir / "deployment" / "streamlit"
+    required_files = [
+        "streamlit_app.py",
+        "requirements.txt",
+        "packages.txt",
+        ".gitignore",
+        ".streamlit/config.toml",
+        "config/default.yaml",
+        "data/manifest.parquet",
+        "data/space/vectors.parquet",
+        "data/space/models.joblib",
+    ]
+    source_files = list((project_dir / "src").rglob("*.py"))
+    for source in source_files:
+        required_files.append(source.relative_to(project_dir).as_posix())
+
+    for relative_path in required_files:
+        if not (project_dir / relative_path).is_file():
+            raise FileNotFoundError(f"Required deployment file is missing: {relative_path}")
+
+    sample_path = "data/demo/sweet_child_o_mine.mp3"
+    if (project_dir / sample_path).is_file():
+        required_files.append(sample_path)
+
+    for relative_path in required_files:
+        source = project_dir / relative_path
+        destination = output_dir / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+
+    print(f"Prepared {len(required_files)} files in {output_dir}")
+    print("Publish this folder as a separate GitHub repository.")
+    print("Streamlit entrypoint: streamlit_app.py; Python version: 3.12")
+    return output_dir
+
+
+if __name__ == "__main__":
+    prepare_deployment()

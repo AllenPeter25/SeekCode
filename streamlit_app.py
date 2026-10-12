@@ -10,6 +10,9 @@ from src.seekaudio.analysis import analyze_audio
 from src.seekaudio.config import load_config
 
 
+PROJECT_DIR = Path(__file__).resolve().parent
+
+
 @st.cache_data
 def read_table(path: str, modified: int) -> pd.DataFrame:
     return pd.read_parquet(path)
@@ -21,14 +24,14 @@ def read_models(path: str, modified: int) -> dict:
 
 
 def load_catalog(config):
-    manifest_path = Path(config.paths.manifest)
-    space_dir = Path(config.paths.space_dir)
+    manifest_path = PROJECT_DIR / config.paths.manifest
+    space_dir = PROJECT_DIR / config.paths.space_dir
     vectors_path = space_dir / "vectors.parquet"
     models_path = space_dir / "models.joblib"
 
     for path in [manifest_path, vectors_path, models_path]:
         if not path.exists():
-            st.info("Run python -m src.seekaudio run from the project folder first.")
+            st.error("The saved analysis catalog is missing. Include the manifest, vectors, and models in the deployment.")
             st.stop()
 
     manifest = read_table(str(manifest_path), manifest_path.stat().st_mtime_ns)
@@ -49,7 +52,7 @@ def configure_page() -> None:
         unsafe_allow_html=True,
     )
     st.title("seekaudio")
-    st.write("Upload a song to estimate its genre and explore its audio characteristics.")
+    st.write("Upload a song or try the sample to estimate its genre and explore its audio characteristics.")
 
 
 def update_upload_state(audio_bytes) -> None:
@@ -144,26 +147,44 @@ def show_analysis_result(analysis: dict) -> None:
 
 def main() -> None:
     configure_page()
-    config = load_config()
+    config = load_config(PROJECT_DIR / "config" / "default.yaml")
     manifest, vectors, models = load_catalog(config)
-    st.subheader("Upload your song")
-    uploaded = st.file_uploader(
-        "Choose an audio file",
-        type=["wav", "flac", "mp3"],
-        help="Supported formats: WAV, FLAC, and MP3. We analyze a centered excerpt of your audio.",
+    source = st.radio(
+        "Choose your audio",
+        ["Upload a song", "Try sample song"],
+        horizontal=True,
     )
+    uploaded = None
+    sample_path = PROJECT_DIR / "data" / "demo" / "sweet_child_o_mine.mp3"
     audio_bytes = None
-    if uploaded is not None:
-        audio_bytes = uploaded.getvalue()
+    if source == "Upload a song":
+        uploaded = st.file_uploader(
+            "Choose an audio file",
+            type=["wav", "flac", "mp3"],
+            help="Supported formats: WAV, FLAC, and MP3. We analyze a centered excerpt of your audio.",
+        )
+        if uploaded is not None:
+            audio_bytes = uploaded.getvalue()
+    else:
+        st.write("Sweet Child O' Mine — Guns N' Roses")
+        if sample_path.is_file():
+            audio_bytes = sample_path.read_bytes()
+        else:
+            st.info("The sample song is not available yet. You can still upload your own audio.")
+
     update_upload_state(audio_bytes)
-    if uploaded is not None:
-        st.caption("Your uploaded audio")
+    if audio_bytes is not None:
+        st.caption("Audio preview")
         st.audio(audio_bytes)
 
-    if st.button("Analyze audio", type="primary", disabled=uploaded is None):
+    if st.button("Analyze audio", type="primary", disabled=audio_bytes is None):
         try:
             with st.spinner("Analyzing your audio..."):
-                st.session_state["analysis"] = analyze_upload(uploaded, manifest, vectors, models)
+                if source == "Upload a song":
+                    analysis = analyze_upload(uploaded, manifest, vectors, models)
+                else:
+                    analysis = analyze_audio(sample_path, vectors, models, manifest)
+                st.session_state["analysis"] = analysis
         except (OSError, ValueError, RuntimeError) as error:
             st.session_state.pop("analysis", None)
             st.error(str(error))

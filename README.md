@@ -1,7 +1,40 @@
 # seekaudio
 
-Content-based music retrieval using interpretable audio features. Select a song
-or provide an audio file to retrieve acoustically similar dataset tracks.
+seekaudio is a Python audio-analysis and music-retrieval project built to explore
+the intersection of AI, analytics, and audio signal processing. It compares songs
+using measurable sound characteristics rather than artist names or listening history.
+
+## Project overview
+
+We built a complete workflow that prepares an audio dataset, extracts musical
+features, creates a searchable feature space, and evaluates the retrieved matches.
+The local Streamlit demo lets visitors upload audio or try the supplied
+"Sweet Child O' Mine" sample. It displays an estimated genre, 12 technical audio
+measurements, and a downloadable Mel spectrogram of the analyzed excerpt.
+
+What has been implemented:
+
+- Dataset ingestion and validation: a saved manifest of 999 usable GTZAN tracks,
+  with one unreadable recording skipped.
+- Audio preparation: mono conversion, resampling to 22,050 Hz, and a centered
+  30-second excerpt with silence padding for shorter files.
+- Feature extraction: 53 numeric values covering MFCC timbre, spectral properties,
+  RMS energy, and rhythm, with optional tonal features.
+- Similarity search: standardization, group normalization and weighting, optional
+  PCA and whitening, and cosine-similarity ranking. Uploaded queries reuse the
+  saved transforms.
+- Evaluation: Precision@K, Recall@K, MAP@K, nDCG@K, an expected random baseline,
+  eight feature ablations, saved reports, and comparison plots.
+- A simple web demo: estimated genre from nearest-match voting, audio preview,
+  technical measurements, and a Mel spectrogram using the same extraction settings.
+- Reproducible command-line stages, saved models, and automated tests.
+
+The current combined-feature PCA pipeline achieves **Precision@10 of 0.4862**,
+compared with **0.0991** for expected random retrieval. MFCC-only retrieval scores
+**0.5027**, showing that adding more features does not automatically improve results.
+These measure same-genre retrieval within the catalog, not held-out classification
+accuracy. The demo's genre estimate is based on neighbor votes, not a trained,
+calibrated genre classifier.
 
 ## Setup
 
@@ -36,12 +69,47 @@ python -m pytest tests -q
 
 After installation, `python -m seekaudio` or `seekaudio` also works.
 
-The Streamlit demo is upload-only and displays an estimated genre and technical
+The Streamlit demo accepts uploads or a bundled sample and displays an estimated genre and technical
 audio measurements. Genre is predicted by majority vote among up to ten nearest
 catalog vectors, with summed similarity breaking vote ties. This is not a trained
 or calibrated genre classifier. Retrieval results remain available through the CLI.
 
-## Individual stages
+To enable the sample song option, place your audio file at
+`data/demo/sweet_child_o_mine.mp3`. The sample is supplied locally; the app does
+not download recordings. Only bundle recordings you have permission to redistribute
+when publishing the demo. Without that file, the upload option still works.
+
+## Deploy to Streamlit Community Cloud
+
+Create a small deployment folder with the saved catalog and optional sample:
+
+```powershell
+python scripts/prepare_streamlit.py
+```
+
+The output is `deployment/streamlit/`. Upload its contents to a separate GitHub
+repository, keeping `streamlit_app.py` at the repository root. The bundle includes
+the Python source, pinned dependencies, Streamlit settings, manifest, vectors,
+models, and locally supplied sample. It excludes the raw dataset, feature tables,
+tests, caches, and experiment reports. No dataset rebuilding is needed in the cloud.
+
+The original repository already tracks `data/raw/`; `.gitignore` does not remove
+previously tracked files or Git history. The separate deployment repository avoids
+copying that large dataset and does not alter your existing Git index or files.
+
+On [Streamlit Community Cloud](https://share.streamlit.io), click **Create app**,
+select the deployment repository and branch, set the main file to
+`streamlit_app.py`, choose **Python 3.12** under advanced settings, and deploy.
+The app uses `requirements.txt`; its pinned scikit-learn version matches the saved
+model. Uploads are limited to 25 MB. Secrets are not required for this app.
+
+Only include the sample recording in a public repository if you have permission
+to redistribute it. The upload workflow works without a bundled sample.
+
+Official guides: [deployment](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy)
+and [dependencies](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-dependencies).
+
+## Reading and running individual stages
 
 For a first read of the Python code, follow this order:
 
