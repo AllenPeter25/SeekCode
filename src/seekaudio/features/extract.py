@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .audio import load_audio
@@ -28,6 +29,30 @@ def extract_track_features(
         duration=duration,
         mono=True,
     )
+    return extract_waveform_features(
+        waveform,
+        track_id=audio_path.stem,
+        sample_rate=sample_rate,
+        n_mfcc=n_mfcc,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        n_mels=n_mels,
+        include_rhythm=include_rhythm,
+        include_tonal=include_tonal,
+    )
+
+
+def extract_waveform_features(
+    waveform: np.ndarray,
+    track_id: str,
+    sample_rate: int = 22_050,
+    n_mfcc: int = 20,
+    n_fft: int = 2_048,
+    hop_length: int = 512,
+    n_mels: int = 128,
+    include_rhythm: bool = True,
+    include_tonal: bool = False,
+) -> dict[str, str | float]:
     mfcc_features = extract_mfcc_features(
         waveform,
         sample_rate=sample_rate,
@@ -47,17 +72,20 @@ def extract_track_features(
         n_fft=n_fft,
         hop_length=hop_length,
     )
-    rhythm_features = extract_rhythm_features(waveform, sample_rate, n_fft, hop_length) if include_rhythm else {}
-    tonal_features = extract_tonal_features(waveform, sample_rate, n_fft, hop_length) if include_tonal else {}
+    features = {"track_id": track_id}
+    features.update(mfcc_features)
+    features.update(spectral_features)
+    features.update(energy_features)
 
-    return {
-        "track_id": audio_path.stem,
-        **mfcc_features,
-        **spectral_features,
-        **energy_features,
-        **rhythm_features,
-        **tonal_features,
-    }
+    if include_rhythm:
+        rhythm_features = extract_rhythm_features(waveform, sample_rate, n_fft, hop_length)
+        features.update(rhythm_features)
+
+    if include_tonal:
+        tonal_features = extract_tonal_features(waveform, sample_rate, n_fft, hop_length)
+        features.update(tonal_features)
+
+    return features
 
 
 def extract_feature_table(

@@ -11,6 +11,11 @@ from .ingest import ingest_dataset
 from .space import build_feature_space, save_feature_space, select_features
 
 
+def write_json(path: str | Path, data: dict) -> None:
+    path = Path(path)
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
 def feature_path(config: SeekAudioConfig) -> Path:
     return Path(config.paths.features_dir) / f"features_v{config.paths.feature_spec_version}.parquet"
 
@@ -38,10 +43,11 @@ def extract_dataset(manifest: pd.DataFrame, config: SeekAudioConfig, output_path
     settings = extraction_settings(config)
     features = extract_feature_table(manifest, **settings, progress=True)
     output_path = save_feature_table(features, output_path)
-    output_path.with_suffix(".json").write_text(
-        json.dumps({"feature_spec_version": config.paths.feature_spec_version, "extraction_settings": settings}, indent=2),
-        encoding="utf-8",
-    )
+    metadata = {
+        "feature_spec_version": config.paths.feature_spec_version,
+        "extraction_settings": settings,
+    }
+    write_json(output_path.with_suffix(".json"), metadata)
     return features
 
 
@@ -81,7 +87,7 @@ def run_ablations(
         vectors, _ = build_configured_space(features, config)
         results = add_random_baseline(evaluate_precision_at_k(vectors, manifest, k))
         save_evaluation(results, k, output_dir / name)
-        (output_dir / name / "config.json").write_text(json.dumps(asdict(config), indent=2), encoding="utf-8")
+        write_json(output_dir / name / "config.json", asdict(config))
         records.append({
             "experiment": name,
             "dimensions": len(vectors.columns) - 1,
@@ -107,10 +113,13 @@ def run_pipeline(config: SeekAudioConfig, config_path: str | Path, ablation_path
     results = add_random_baseline(evaluate_precision_at_k(vectors, manifest, config.retrieval.k))
     report_dir = Path(config.paths.evaluation_dir) / "current"
     save_evaluation(results, config.retrieval.k, report_dir)
-    (report_dir / "config.json").write_text(json.dumps(asdict(config), indent=2), encoding="utf-8")
+    write_json(report_dir / "config.json", asdict(config))
     print("5/5 Comparing ablations and creating plots...", flush=True)
-    comparison = run_ablations(features, manifest, config_path, ablation_path,
-                               Path(config.paths.evaluation_dir) / "ablations", config.retrieval.k)
+    ablation_dir = Path(config.paths.evaluation_dir) / "ablations"
+    comparison = run_ablations(
+        features, manifest, config_path, ablation_path,
+        ablation_dir, config.retrieval.k,
+    )
     from .viz import plot_evaluation
     plot_evaluation(results, comparison, Path(config.paths.evaluation_dir) / "plots", config.retrieval.k)
     print(f"Finished: {len(vectors)} tracks; Precision@{config.retrieval.k} = {results.precision_at_k.mean():.4f}")

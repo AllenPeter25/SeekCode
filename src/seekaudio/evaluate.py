@@ -7,6 +7,32 @@ import pandas as pd
 from .retrieval import find_similar_tracks
 
 
+def calculate_ranking_metrics(relevance: np.ndarray, total_relevant: int) -> dict[str, float]:
+    match_count = len(relevance)
+    relevant_found = float(relevance.sum())
+    ranks = np.arange(1, match_count + 1)
+    precision_by_rank = np.cumsum(relevance) / ranks
+    ideal_count = min(total_relevant, match_count)
+    discounts = 1 / np.log2(ranks + 1)
+    ideal_dcg = discounts[:ideal_count].sum()
+
+    recall = 0.0
+    average_precision = 0.0
+    ndcg = 0.0
+    if total_relevant > 0:
+        recall = relevant_found / total_relevant
+    if ideal_count > 0:
+        average_precision = float((precision_by_rank * relevance).sum() / ideal_count)
+        ndcg = float((relevance * discounts).sum() / ideal_dcg)
+
+    return {
+        "precision_at_k": relevant_found / match_count,
+        "recall_at_k": recall,
+        "average_precision_at_k": average_precision,
+        "ndcg_at_k": ndcg,
+    }
+
+
 def evaluate_precision_at_k(
     vectors: pd.DataFrame,
     manifest: pd.DataFrame,
@@ -43,19 +69,10 @@ def evaluate_precision_at_k(
         matching_genres = genres.loc[results["track_id"]] == query_genre
         relevance = matching_genres.to_numpy(dtype=float)
         total_relevant = int(genre_counts[query_genre] - 1)
-        ranks = np.arange(1, k + 1)
-        precision_by_rank = np.cumsum(relevance) / ranks
-        ideal_count = min(total_relevant, k)
-        discounts = 1 / np.log2(ranks + 1)
-        ideal_dcg = discounts[:ideal_count].sum()
-        records.append({
-            "track_id": track_id,
-            "genre": query_genre,
-            "precision_at_k": float(matching_genres.sum() / k),
-            "recall_at_k": float(relevance.sum() / total_relevant) if total_relevant else 0.0,
-            "average_precision_at_k": float((precision_by_rank * relevance).sum() / ideal_count) if ideal_count else 0.0,
-            "ndcg_at_k": float((relevance * discounts).sum() / ideal_dcg) if ideal_dcg else 0.0,
-        })
+        metrics = calculate_ranking_metrics(relevance, total_relevant)
+        record = {"track_id": track_id, "genre": query_genre}
+        record.update(metrics)
+        records.append(record)
 
     return pd.DataFrame(records)
 
@@ -114,9 +131,9 @@ def save_evaluation(
         random_score = float(results["random_precision_at_k"].mean())
         summary["random_baseline_method"] = "expected_uniform_retrieval_without_replacement"
         summary["random_precision_at_k"] = random_score
-        summary["lift_over_random"] = (
-            summary["mean_precision_at_k"] / random_score if random_score > 0 else None
-        )
+        summary["lift_over_random"] = None
+        if random_score > 0:
+            summary["lift_over_random"] = summary["mean_precision_at_k"] / random_score
     with (output_dir / "summary.json").open("w", encoding="utf-8") as output_file:
         json.dump(summary, output_file, indent=2, allow_nan=False)
 

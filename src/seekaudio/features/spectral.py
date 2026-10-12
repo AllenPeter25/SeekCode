@@ -1,6 +1,8 @@
 import numpy as np
 from numpy.typing import NDArray
 
+from .audio import split_into_frames
+
 
 def extract_spectral_features(
     waveform: NDArray[np.float32],
@@ -20,7 +22,7 @@ def extract_spectral_features(
     if waveform.size < n_fft:
         raise ValueError("Waveform is shorter than n_fft")
 
-    frames = np.lib.stride_tricks.sliding_window_view(waveform, n_fft)[::hop_length]
+    frames = split_into_frames(waveform, n_fft, hop_length)
     windowed_frames = frames * np.hanning(n_fft)
     magnitudes = np.abs(np.fft.rfft(windowed_frames, axis=1))
     frequencies = np.fft.rfftfreq(n_fft, d=1 / sample_rate)

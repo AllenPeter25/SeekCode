@@ -3,6 +3,8 @@ from numpy.typing import NDArray
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import correlate
 
+from .audio import split_into_frames
+
 
 def extract_rhythm_features(
     waveform: NDArray[np.float32],
@@ -19,7 +21,7 @@ def extract_rhythm_features(
     if not np.isfinite(waveform).all():
         raise ValueError("Waveform must contain only finite numbers")
 
-    frames = np.lib.stride_tricks.sliding_window_view(waveform, n_fft)[::hop_length]
+    frames = split_into_frames(waveform, n_fft, hop_length)
     rms = np.sqrt(np.mean(np.square(frames, dtype=np.float64), axis=1))
     onsets = np.maximum(np.diff(rms, prepend=rms[0]), 0)
     frame_rate = sample_rate / hop_length

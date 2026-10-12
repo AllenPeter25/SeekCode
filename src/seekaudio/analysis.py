@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from .features.audio import load_audio
-from .features.extract import extract_track_features
+from .features.extract import extract_waveform_features
 from .ingest import read_audio_metadata
 from .retrieval import add_track_details, search_feature_record
 from .viz import render_mel_spectrogram
@@ -22,12 +22,19 @@ def estimate_genre(matches: pd.DataFrame) -> str:
 def analyze_audio(audio_path, vectors: pd.DataFrame, models: dict, manifest: pd.DataFrame) -> dict:
     if "extraction_settings" not in models:
         raise ValueError("Rebuild the saved models using the run command before analyzing audio")
+    audio_path = Path(audio_path)
+    settings = models["extraction_settings"]
     metadata = read_audio_metadata(audio_path)
-    features = extract_track_features(audio_path, **models["extraction_settings"])
+    waveform = load_audio(
+        audio_path,
+        sample_rate=settings["sample_rate"],
+        duration=settings["duration"],
+    )
+    feature_settings = settings.copy()
+    feature_settings.pop("duration")
+    features = extract_waveform_features(waveform, track_id=audio_path.stem, **feature_settings)
     results = search_feature_record(features, vectors, models, k=10)
     matches = add_track_details(results, manifest)
-    settings = models["extraction_settings"]
-    waveform = load_audio(audio_path, sample_rate=settings["sample_rate"], duration=settings["duration"])
     peak = float(np.max(np.abs(waveform)))
     return {
         "genre": estimate_genre(matches),
@@ -49,3 +56,5 @@ def analyze_audio(audio_path, vectors: pd.DataFrame, models: dict, manifest: pd.
             settings["hop_length"], settings["n_mels"],
         ),
     }
+from pathlib import Path
+

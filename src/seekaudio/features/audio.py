@@ -55,3 +55,24 @@ def load_audio(
         waveform = np.pad(waveform, padding)
 
     return waveform.astype(np.float32)
+
+
+def split_into_frames(waveform: np.ndarray, frame_length: int, hop_length: int) -> np.ndarray:
+    if waveform.ndim != 1:
+        raise ValueError("Waveform must be mono")
+    if frame_length <= 0 or hop_length <= 0:
+        raise ValueError("Window settings must be greater than zero")
+    if waveform.size < frame_length:
+        raise ValueError("Waveform is shorter than n_fft")
+    if not np.isfinite(waveform).all():
+        raise ValueError("Waveform must contain only finite numbers")
+
+    all_windows = np.lib.stride_tricks.sliding_window_view(waveform, frame_length)
+    return all_windows[::hop_length]
+
+
+def calculate_power_spectrum(frames: np.ndarray) -> np.ndarray:
+    window = np.hanning(frames.shape[1])
+    windowed_frames = frames * window
+    frequency_values = np.fft.rfft(windowed_frames, axis=1)
+    return np.abs(frequency_values) ** 2

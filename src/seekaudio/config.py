@@ -1,29 +1,13 @@
-"""
-config.py — load and expose seekaudio configuration as dataclasses.
-
-Usage:
-    from seekaudio.config import load_config
-    cfg = load_config()                        # uses config/default.yaml
-    cfg = load_config("config/default.yaml", overrides={"retrieval": {"k": 5}})
-"""
-
-from __future__ import annotations
-
 import copy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional
 
 import yaml
 
 
-# ---------------------------------------------------------------------------
-# Dataclasses
-# ---------------------------------------------------------------------------
-
 @dataclass
 class AudioConfig:
-    sample_rate: int = 22050
+    sample_rate: int = 22_050
     duration: int = 30
     mono: bool = True
 
@@ -49,7 +33,7 @@ class FeatureWeightsConfig:
 @dataclass
 class FeaturesConfig:
     n_mfcc: int = 20
-    n_fft: int = 2048
+    n_fft: int = 2_048
     hop_length: int = 512
     n_chroma: int = 12
     n_mels: int = 128
@@ -64,7 +48,7 @@ class PoolingConfig:
 
 @dataclass
 class SpaceConfig:
-    pca_components: Optional[int] = 40
+    pca_components: int | None = 40
     whiten: bool = True
     l2_normalize: bool = True
 
@@ -94,87 +78,58 @@ class SeekAudioConfig:
     pooling: PoolingConfig = field(default_factory=PoolingConfig)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def read_yaml(path: str | Path) -> dict:
+    with Path(path).open(encoding="utf-8") as config_file:
+        return yaml.safe_load(config_file) or {}
 
-def _deep_merge(base: dict, override: dict) -> dict:
-    """Recursively merge override into base (non-destructive)."""
-    result = copy.deepcopy(base)
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(result.get(key), dict):
-            result[key] = _deep_merge(result[key], value)
+
+def _deep_merge(base: dict, overrides: dict) -> dict:
+    merged = copy.deepcopy(base)
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
         else:
-            result[key] = value
-    return result
+            merged[key] = value
+    return merged
 
 
-def _dict_to_config(d: dict) -> SeekAudioConfig:
-    d = copy.deepcopy(d)
-    audio = AudioConfig(**d.get("audio", {}))
-
-    feat_d = d.get("features", {})
-    groups_d = feat_d.pop("groups", {})
-    weights_d = feat_d.pop("weights", {})
+def _dict_to_config(settings: dict) -> SeekAudioConfig:
+    feature_settings = copy.deepcopy(settings.get("features", {}))
+    group_settings = feature_settings.pop("groups", {})
+    weight_settings = feature_settings.pop("weights", {})
     features = FeaturesConfig(
-        **feat_d,
-        groups=FeatureGroupsConfig(**groups_d),
-        weights=FeatureWeightsConfig(**weights_d),
+        **feature_settings,
+        groups=FeatureGroupsConfig(**group_settings),
+        weights=FeatureWeightsConfig(**weight_settings),
     )
-
-    space = SpaceConfig(**d.get("space", {}))
-    retrieval = RetrievalConfig(**d.get("retrieval", {}))
-    paths = PathsConfig(**d.get("paths", {}))
-
     return SeekAudioConfig(
-        audio=audio,
+        audio=AudioConfig(**settings.get("audio", {})),
         features=features,
-        space=space,
-        retrieval=retrieval,
-        paths=paths,
-        pooling=PoolingConfig(**d.get("pooling", {})),
+        space=SpaceConfig(**settings.get("space", {})),
+        retrieval=RetrievalConfig(**settings.get("retrieval", {})),
+        paths=PathsConfig(**settings.get("paths", {})),
+        pooling=PoolingConfig(**settings.get("pooling", {})),
     )
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-def load_config(
-    path: str | Path = "config/default.yaml",
-    overrides: Optional[Dict] = None,
-) -> SeekAudioConfig:
-    """Load config from *path* YAML, optionally deep-merging *overrides*."""
+def load_config(path: str | Path = "config/default.yaml", overrides: dict | None = None) -> SeekAudioConfig:
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
-
-    with path.open() as f:
-        raw = yaml.safe_load(f) or {}
-
+    settings = read_yaml(path)
     if overrides:
-        raw = _deep_merge(raw, overrides)
-
-    return _dict_to_config(raw)
+        settings = _deep_merge(settings, overrides)
+    return _dict_to_config(settings)
 
 
 def load_ablation_configs(
     default_path: str | Path = "config/default.yaml",
     ablation_path: str | Path = "config/ablation.yaml",
-) -> Dict[str, SeekAudioConfig]:
-    """Return {name: SeekAudioConfig} for every entry in ablation.yaml."""
-    default_path = Path(default_path)
-    ablation_path = Path(ablation_path)
-
-    with default_path.open() as f:
-        base = yaml.safe_load(f) or {}
-
-    with ablation_path.open() as f:
-        ablation = yaml.safe_load(f) or {}
-
-    configs: Dict[str, SeekAudioConfig] = {}
-    for name, override in ablation.get("configs", {}).items():
-        merged = _deep_merge(base, override or {})
-        configs[name] = _dict_to_config(merged)
-
+) -> dict[str, SeekAudioConfig]:
+    default_settings = read_yaml(default_path)
+    experiment_settings = read_yaml(ablation_path).get("configs", {})
+    configs = {}
+    for name, overrides in experiment_settings.items():
+        settings = _deep_merge(default_settings, overrides or {})
+        configs[name] = _dict_to_config(settings)
     return configs

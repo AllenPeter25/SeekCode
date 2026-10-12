@@ -2,6 +2,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.fft import dct
 
+from .audio import calculate_power_spectrum, split_into_frames
+
 
 def _create_mel_filter_bank(
     sample_rate: int,
@@ -31,6 +33,19 @@ def _create_mel_filter_bank(
     return filters
 
 
+def calculate_mel_power(
+    waveform: np.ndarray,
+    sample_rate: int,
+    n_fft: int,
+    hop_length: int,
+    n_mels: int,
+) -> np.ndarray:
+    frames = split_into_frames(waveform, n_fft, hop_length)
+    power_spectrum = calculate_power_spectrum(frames)
+    mel_filters = _create_mel_filter_bank(sample_rate, n_fft, n_mels)
+    return power_spectrum @ mel_filters.T
+
+
 def extract_mfcc_features(
     waveform: NDArray[np.float32],
     sample_rate: int = 22_050,
@@ -52,11 +67,7 @@ def extract_mfcc_features(
     if waveform.size < n_fft:
         raise ValueError("Waveform is shorter than n_fft")
 
-    frames = np.lib.stride_tricks.sliding_window_view(waveform, n_fft)[::hop_length]
-    windowed_frames = frames * np.hanning(n_fft)
-    power_spectrum = np.abs(np.fft.rfft(windowed_frames, axis=1)) ** 2
-    mel_filters = _create_mel_filter_bank(sample_rate, n_fft, n_mels)
-    mel_spectrum = power_spectrum @ mel_filters.T
+    mel_spectrum = calculate_mel_power(waveform, sample_rate, n_fft, hop_length, n_mels)
     log_mel_spectrum = 10 * np.log10(
         np.maximum(mel_spectrum, np.finfo(np.float64).tiny)
     )

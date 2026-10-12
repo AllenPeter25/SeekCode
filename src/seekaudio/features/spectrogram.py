@@ -1,6 +1,6 @@
 import numpy as np
 
-from .mfcc import _create_mel_filter_bank
+from .mfcc import calculate_mel_power
 
 
 def compute_mel_spectrogram(
@@ -17,12 +17,10 @@ def compute_mel_spectrogram(
     if not np.isfinite(waveform).all():
         raise ValueError("Waveform must contain only finite numbers")
 
-    frames = np.lib.stride_tricks.sliding_window_view(waveform, n_fft)[::hop_length]
-    power = np.abs(np.fft.rfft(frames * np.hanning(n_fft), axis=1)) ** 2
-    mel_power = power @ _create_mel_filter_bank(sample_rate, n_fft, n_mels).T
+    mel_power = calculate_mel_power(waveform, sample_rate, n_fft, hop_length, n_mels)
     peak = float(mel_power.max())
     if peak == 0:
-        return np.full((n_mels, len(frames)), -80.0)
+        return np.full((n_mels, len(mel_power)), -80.0)
 
     decibels = 10 * np.log10(np.maximum(mel_power, np.finfo(float).tiny)) - 10 * np.log10(peak)
     return np.clip(decibels.T, -80, 0)

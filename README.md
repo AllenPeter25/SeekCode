@@ -43,6 +43,19 @@ or calibrated genre classifier. Retrieval results remain available through the C
 
 ## Individual stages
 
+For a first read of the Python code, follow this order:
+
+1. `src/seekaudio/ingest.py`: find songs and create their metadata table.
+2. `src/seekaudio/features/audio.py`: load audio and split it into short windows.
+3. `src/seekaudio/features/extract.py`: combine the feature extractors.
+4. `src/seekaudio/space.py`: scale and transform the feature table.
+5. `src/seekaudio/retrieval.py`: compare songs and rank matches.
+6. `src/seekaudio/analysis.py`: estimate genre and prepare display measurements.
+7. `streamlit_app.py`: display uploads and analysis results.
+
+`__main__.py` defines command arguments and chooses a command handler.
+`cli_commands.py` runs the individual commands. `pipeline.py` connects the stages.
+
 ```powershell
 python -m src.seekaudio ingest
 python -m src.seekaudio extract

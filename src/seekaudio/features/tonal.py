@@ -1,6 +1,8 @@
 import numpy as np
 from numpy.typing import NDArray
 
+from .audio import calculate_power_spectrum, split_into_frames
+
 
 def extract_tonal_features(
     waveform: NDArray[np.float32],
@@ -10,8 +12,8 @@ def extract_tonal_features(
 ) -> dict[str, float]:
     if waveform.ndim != 1 or waveform.size < n_fft:
         raise ValueError("Tonal features require mono audio of at least n_fft samples")
-    frames = np.lib.stride_tricks.sliding_window_view(waveform, n_fft)[::hop_length]
-    power = np.abs(np.fft.rfft(frames * np.hanning(n_fft), axis=1)) ** 2
+    frames = split_into_frames(waveform, n_fft, hop_length)
+    power = calculate_power_spectrum(frames)
     frequencies = np.fft.rfftfreq(n_fft, 1 / sample_rate)
     audible = frequencies >= 27.5
     pitch_classes = np.rint(69 + 12 * np.log2(frequencies[audible] / 440)).astype(int) % 12
