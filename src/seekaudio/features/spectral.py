@@ -1,3 +1,5 @@
+"""Measure frequency distribution and sign changes over short audio windows."""
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -11,6 +13,13 @@ def extract_spectral_features(
     hop_length: int = 512,
     roll_percent: float = 0.85,
 ) -> dict[str, float]:
+    """Return mean/std for centroid, bandwidth, rolloff, and zero-crossing rate.
+
+    Centroid, bandwidth, and rolloff are in Hz and use spectral magnitude weights.
+    roll_percent defaults to 0.85, meaning 85% of cumulative magnitude, not power.
+    Zero-crossing rate is a fraction of adjacent sample pairs changing sign.
+    All-silent frames receive zero frequency statistics.
+    """
     if waveform.ndim != 1:
         raise ValueError("Waveform must be mono")
     if sample_rate <= 0:
@@ -28,6 +37,8 @@ def extract_spectral_features(
     frequencies = np.fft.rfftfreq(n_fft, d=1 / sample_rate)
     magnitude_sums = magnitudes.sum(axis=1)
 
+    # Centroid is the magnitude-weighted average frequency of each frame.
+    # out/where avoid division by zero when a frame contains only silence.
     centroids = np.divide(
         magnitudes @ frequencies,
         magnitude_sums,
@@ -35,6 +46,8 @@ def extract_spectral_features(
         where=magnitude_sums > 0,
     )
     squared_distances = np.square(frequencies - centroids[:, np.newaxis])
+    # Bandwidth is the weighted RMS distance of frequencies from their centroid.
+    # Adding a new axis broadcasts each frame's centroid across its frequency bins.
     bandwidths = np.sqrt(
         np.divide(
             np.sum(magnitudes * squared_distances, axis=1),
@@ -43,6 +56,7 @@ def extract_spectral_features(
             where=magnitude_sums > 0,
         )
     )
+    # Find the first frequency bin crossing the chosen cumulative-magnitude threshold.
     cumulative_magnitudes = np.cumsum(magnitudes, axis=1)
     rolloff_indices = np.argmax(
         cumulative_magnitudes >= roll_percent * magnitude_sums[:, np.newaxis],
@@ -50,12 +64,15 @@ def extract_spectral_features(
     )
     rolloffs = frequencies[rolloff_indices]
     rolloffs[magnitude_sums == 0] = 0
+    # Compare neighboring signs in the original frames, not the windowed spectrum.
+    # signbit treats exact zero as non-negative; no amplitude threshold is applied.
     zero_crossings = np.not_equal(
         np.signbit(frames[:, 1:]),
         np.signbit(frames[:, :-1]),
     )
     zero_crossing_rates = np.mean(zero_crossings, axis=1)
 
+    # Each frame-level sequence becomes two stable columns for a track.
     return {
         "spectral_centroid_mean": float(np.mean(centroids)),
         "spectral_centroid_std": float(np.std(centroids)),

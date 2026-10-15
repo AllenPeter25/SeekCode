@@ -1,3 +1,9 @@
+"""Coordinate extractors without fitting models or using genre labels.
+
+Single file -> prepared waveform -> feature dictionaries -> one combined record.
+Manifest -> repeat for every path -> raw feature DataFrame -> saved Parquet.
+"""
+
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +28,11 @@ def extract_track_features(
     include_rhythm: bool = True,
     include_tonal: bool = False,
 ) -> dict[str, str | float]:
+    """Load one audio path and return its ID plus pooled acoustic feature values.
+
+    Defaults produce 53 numeric values: 40 MFCC, 8 spectral, 2 energy, 3 rhythm.
+    Optional tonal extraction adds 36 values. These are raw, unscaled features.
+    """
     audio_path = Path(audio_path)
     waveform = load_audio(
         audio_path,
@@ -53,6 +64,12 @@ def extract_waveform_features(
     include_rhythm: bool = True,
     include_tonal: bool = False,
 ) -> dict[str, str | float]:
+    """Extract features from an already prepared mono waveform.
+
+    The web analysis uses this entrypoint to reuse its waveform for measurements
+    and plotting. Each extractor summarizes frame measurements using mean/std,
+    except tempo, which is already a single track-level estimate.
+    """
     mfcc_features = extract_mfcc_features(
         waveform,
         sample_rate=sample_rate,
@@ -73,6 +90,7 @@ def extract_waveform_features(
         hop_length=hop_length,
     )
     features = {"track_id": track_id}
+    # update merges named groups; prefixes keep columns unique and selectable later.
     features.update(mfcc_features)
     features.update(spectral_features)
     features.update(energy_features)
@@ -100,6 +118,12 @@ def extract_feature_table(
     include_tonal: bool = False,
     progress: bool = False,
 ) -> pd.DataFrame:
+    """Process manifest paths in order and return one feature row per track.
+
+    The manifest must contain track_id and path. Use the manifest ID even if it
+    differs from the filename. Optional progress prints every 100 tracks.
+    A decoding/extraction failure propagates rather than silently losing a row.
+    """
     required_columns = {"track_id", "path"}
     missing_columns = required_columns - set(manifest.columns)
 
@@ -109,6 +133,7 @@ def extract_feature_table(
 
     records = []
 
+    # itertuples exposes row.path/row.track_id without carrying a pandas index field.
     for index, row in enumerate(manifest.itertuples(index=False), start=1):
         features = extract_track_features(
             row.path,
@@ -130,6 +155,7 @@ def extract_feature_table(
 
 
 def save_feature_table(features: pd.DataFrame, output_path: str | Path) -> Path:
+    """Persist raw features as Parquet and return the chosen output path."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     features.to_parquet(output_path, index=False)

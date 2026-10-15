@@ -1,3 +1,10 @@
+"""Evaluate retrieval using same-genre labels as an approximate relevance signal.
+
+Every catalog track queries the others; self-matches are excluded. Metrics are
+pooled by track/genre and compared with exact expected uniform-random retrieval.
+These catalog scores are not independent held-out genre-classification accuracy.
+"""
+
 import json
 from pathlib import Path
 
@@ -8,12 +15,21 @@ from .retrieval import find_similar_tracks
 
 
 def calculate_ranking_metrics(relevance: np.ndarray, total_relevant: int) -> dict[str, float]:
+    """Score an ordered, nonempty binary relevance array for the top-K results.
+
+    relevance[i] is 1 for a same-genre match, otherwise 0. total_relevant counts
+    all relevant catalog candidates, excluding the query. Precision asks what
+    fraction of returned matches are relevant; recall asks what fraction of all
+    relevant candidates were found. AP and nDCG also reward earlier matches.
+    """
     match_count = len(relevance)
     relevant_found = float(relevance.sum())
     ranks = np.arange(1, match_count + 1)
     precision_by_rank = np.cumsum(relevance) / ranks
+    # AP@K uses min(K, total relevant) as its denominator, not necessarily K.
     ideal_count = min(total_relevant, match_count)
     discounts = 1 / np.log2(ranks + 1)
+    # Ideal DCG places every available relevant result before irrelevant results.
     ideal_dcg = discounts[:ideal_count].sum()
 
     recall = 0.0
@@ -38,6 +54,12 @@ def evaluate_precision_at_k(
     manifest: pd.DataFrame,
     k: int = 10,
 ) -> pd.DataFrame:
+    """Search every vector and return per-track precision, recall, AP, and nDCG.
+
+    Requires unique IDs, labels for all evaluated tracks, nonzero vectors, and
+    enough candidates to return exactly K neighbors. Only vector-table tracks
+    form the candidate pool, even if the manifest contains additional tracks.
+    """
     if "track_id" not in vectors.columns:
         raise ValueError("Vector table must contain track_id")
     if vectors["track_id"].isna().any() or not vectors["track_id"].is_unique:
@@ -68,7 +90,7 @@ def evaluate_precision_at_k(
         query_genre = genres.loc[track_id]
         matching_genres = genres.loc[results["track_id"]] == query_genre
         relevance = matching_genres.to_numpy(dtype=float)
-        total_relevant = int(genre_counts[query_genre] - 1)
+        total_relevant = int(genre_counts[query_genre] - 1)  # The query itself is not relevant retrieval.
         metrics = calculate_ranking_metrics(relevance, total_relevant)
         record = {"track_id": track_id, "genre": query_genre}
         record.update(metrics)
@@ -78,6 +100,12 @@ def evaluate_precision_at_k(
 
 
 def add_random_baseline(results: pd.DataFrame) -> pd.DataFrame:
+    """Add exact expected random Precision@K for this fully evaluated catalog.
+
+    For a query: (same-genre count - 1) / (catalog size - 1). This expectation is
+    independent of K when sampling uniformly without replacement. No sampling
+    seed is needed. All result rows must represent the same candidate catalog.
+    """
     if len(results) < 2:
         raise ValueError("Random baseline requires at least two tracks")
     if results["genre"].isna().any():
@@ -95,6 +123,12 @@ def save_evaluation(
     k: int,
     output_dir: str | Path,
 ) -> Path:
+    """Save per_track.csv, by_genre.csv, and summary.json, returning their folder.
+
+    The overall mean weights every query equally. Genre means describe each
+    subset; optional metrics/baselines are saved only when present. Reusing the
+    same output folder overwrites its reports, so experiments use separate paths.
+    """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -132,6 +166,7 @@ def save_evaluation(
         summary["random_baseline_method"] = "expected_uniform_retrieval_without_replacement"
         summary["random_precision_at_k"] = random_score
         summary["lift_over_random"] = None
+        # No lift ratio exists when no genre has another relevant candidate.
         if random_score > 0:
             summary["lift_over_random"] = summary["mean_precision_at_k"] / random_score
     with (output_dir / "summary.json").open("w", encoding="utf-8") as output_file:

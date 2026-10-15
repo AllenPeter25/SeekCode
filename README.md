@@ -38,6 +38,25 @@ These measure same-genre retrieval within the catalog, not held-out classificati
 accuracy. The demo's genre estimate is based on neighbor votes, not a trained,
 calibrated genre classifier.
 
+## Technical documentation and learning guide
+
+Download the [complete PDF reference](docs/seekaudio_complete_reference.pdf)
+for the technical report, learning guide, and method reference in one document.
+
+For an in-depth reference to the implementation and a from-scratch study path:
+
+- [Technical report](docs/TECHNICAL_REPORT.md): MIR architecture and flows, signal-processing
+  equations, feature extraction, transformation/search methods, evaluation results,
+  terminology, limitations, and research directions.
+- [Learning guide](docs/LEARNING_GUIDE.md): twelve progressive learning stages with
+  prerequisites, exercises, checkpoints, reconstruction tasks, and interview preparation.
+- [Method reference](docs/METHOD_REFERENCE.md): all 96 production functions/classes,
+  their inputs/outputs, responsibilities, side effects, and call flows.
+
+The report describes the current repository and saved results, not hypothetical
+features or held-out classification accuracy. Start with the learning guide if
+you are refreshing your Python and audio fundamentals.
+
 ## Setup
 
 Use Python 3.12 or newer. Run commands from the project directory.

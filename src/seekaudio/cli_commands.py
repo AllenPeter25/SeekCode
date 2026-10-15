@@ -1,3 +1,5 @@
+"""One readable handler per CLI action; arguments override YAML paths/settings."""
+
 from pathlib import Path
 
 import joblib
@@ -19,18 +21,21 @@ from .space import save_feature_space
 
 
 def get_match_count(args, config) -> int:
+    """Prefer explicit --k, otherwise use retrieval.k from configuration."""
     if args.k is None:
         return config.retrieval.k
     return args.k
 
 
 def print_search_results(results: pd.DataFrame, manifest: pd.DataFrame) -> None:
+    """Attach display metadata and print ranked scores to four decimal places."""
     details = add_track_details(results, manifest)
     display = details.to_string(index=False, float_format="{:.4f}".format)
     print(display)
 
 
 def run_ingest(args, config) -> None:
+    """Handle ingest: scan the selected audio directory and save its manifest."""
     audio_dir = args.audio_dir or config.paths.audio_dir
     output_path = args.output or config.paths.manifest
     manifest = ingest_dataset(audio_dir, output_path)
@@ -38,6 +43,7 @@ def run_ingest(args, config) -> None:
 
 
 def run_extract(args, config) -> None:
+    """Handle extract: read the manifest, extract features, and save their recipe."""
     manifest_path = args.manifest or config.paths.manifest
     output_path = args.output or feature_path(config)
     manifest = pd.read_parquet(manifest_path)
@@ -47,7 +53,9 @@ def run_extract(args, config) -> None:
 
 
 def run_build_space(args, config) -> None:
+    """Handle build-space: fit and save the selected catalog representation."""
     if args.components is not None:
+        # CLI zero maps to None, the internal representation of 'skip PCA'.
         config.space.pca_components = args.components or None
     features_path = args.features or feature_path(config)
     output_dir = args.output_dir or config.paths.space_dir
@@ -60,6 +68,7 @@ def run_build_space(args, config) -> None:
 
 
 def run_search(args, config) -> None:
+    """Handle dataset-ID search using saved vectors, without decoding audio."""
     manifest_path = args.manifest or config.paths.manifest
     vectors_path = args.vectors or Path(config.paths.space_dir) / "vectors.parquet"
     manifest = pd.read_parquet(manifest_path)
@@ -69,6 +78,11 @@ def run_search(args, config) -> None:
 
 
 def find_existing_track_id(audio_path, manifest: pd.DataFrame) -> str | None:
+    """Match an exact resolved file path to its catalog ID, or return None.
+
+    This excludes self-retrieval for an existing dataset file. It does not detect
+    copied files, renamed duplicates, or another recording of the same song.
+    """
     query_path = Path(audio_path).resolve()
     for row in manifest.itertuples(index=False):
         if Path(row.path).resolve() == query_path:
@@ -77,6 +91,7 @@ def find_existing_track_id(audio_path, manifest: pd.DataFrame) -> str | None:
 
 
 def run_audio_search(args, config) -> None:
+    """Handle search-file: load saved models and transform one audio-file query."""
     manifest_path = args.manifest or config.paths.manifest
     space_dir = Path(args.space_dir or config.paths.space_dir)
     manifest = pd.read_parquet(manifest_path)
@@ -91,6 +106,7 @@ def run_audio_search(args, config) -> None:
 
 
 def run_evaluate(args, config) -> None:
+    """Handle evaluate: score the catalog, print aggregate results, and save reports."""
     manifest_path = args.manifest or config.paths.manifest
     vectors_path = args.vectors or Path(config.paths.space_dir) / "vectors.parquet"
     output_dir = args.output_dir or Path(config.paths.evaluation_dir) / "current"
@@ -113,6 +129,7 @@ def run_evaluate(args, config) -> None:
 
 
 def run_comparison(args, config) -> None:
+    """Handle either the basic group comparison or the YAML-defined ablations."""
     features_path = args.features or feature_path(config)
     manifest_path = args.manifest or config.paths.manifest
     output_dir = args.output_dir or Path(config.paths.evaluation_dir) / args.command
@@ -128,6 +145,7 @@ def run_comparison(args, config) -> None:
 
 
 def run_all(args, config) -> None:
+    """Handle run: optionally override the audio folder, then execute all stages."""
     if args.audio_dir:
         config.paths.audio_dir = args.audio_dir
     run_pipeline(config, args.config, args.ablations)

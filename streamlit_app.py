@@ -1,3 +1,14 @@
+"""Browser interface for a prebuilt seekaudio catalog.
+
+Page flow:
+    load cached catalog -> choose upload or sample -> preview audio
+    -> Analyze audio -> store result in session state -> show genre, Mel plot,
+    and technical measurements. This does not retrain the catalog.
+
+Streamlit reruns this script when widgets change. Caches avoid repeated model
+loading; session state retains the result until the chosen audio changes.
+"""
+
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,20 +21,32 @@ from src.seekaudio.analysis import analyze_audio
 from src.seekaudio.config import load_config
 
 
-PROJECT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parent  # Paths work even from another working directory.
 
 
 @st.cache_data
 def read_table(path: str, modified: int) -> pd.DataFrame:
+    """Cache a Parquet table; modified is part of the cache key for file changes."""
     return pd.read_parquet(path)
 
 
 @st.cache_resource
 def read_models(path: str, modified: int) -> dict:
+    """Cache trusted fitted models as a shared resource, invalidated by modification time.
+
+    Analysis calls transform, not fit, so this shared object is not mutated by
+    visitor requests. Do not load arbitrary user-uploaded Joblib/pickle files.
+    """
     return joblib.load(path)
 
 
 def load_catalog(config):
+    """Load the manifest, vectors, and models from configured project-relative paths.
+
+    Raw dataset recordings are unnecessary for this analysis-only UI; the
+    manifest supplies genre labels and IDs. Stop with a setup message if a saved
+    artifact is missing rather than rebuilding a large dataset on a cloud server.
+    """
     manifest_path = PROJECT_DIR / config.paths.manifest
     space_dir = PROJECT_DIR / config.paths.space_dir
     vectors_path = space_dir / "vectors.parquet"
@@ -41,6 +64,11 @@ def load_catalog(config):
 
 
 def configure_page() -> None:
+    """Set page branding and hide Streamlit's top-right controls using scoped CSS.
+
+    These selectors target Streamlit internals and may need adjustment after a
+    framework update. The analysis spinner remains visible near the main content.
+    """
     st.set_page_config(page_title="seekaudio", page_icon="🎵")
     st.markdown(
         """<style>
@@ -56,6 +84,12 @@ def configure_page() -> None:
 
 
 def update_upload_state(audio_bytes) -> None:
+    """Clear stale results when the selected audio content or analysis schema changes.
+
+    A content hash distinguishes uploads even when filenames are the same.
+    The prefix was bumped when Librosa fields were added so older cached result
+    dictionaries cannot reach a display expecting those new keys.
+    """
     signature = None
     if audio_bytes is not None:
         signature = "librosa-v1:" + sha256(audio_bytes).hexdigest()
@@ -65,6 +99,12 @@ def update_upload_state(audio_bytes) -> None:
 
 
 def analyze_upload(uploaded, manifest, vectors, models) -> dict:
+    """Analyze upload bytes through a temporary decoder-readable audio path.
+
+    SoundFile expects a readable file. Only the original filename's final part
+    is used; the temporary directory is removed when this block finishes, even
+    if analysis raises. Returned measurements/PNG bytes outlive that temp file.
+    """
     with TemporaryDirectory(prefix="seekaudio-query-") as temporary_dir:
         audio_path = Path(temporary_dir) / Path(uploaded.name).name
         audio_path.write_bytes(uploaded.getvalue())
@@ -72,6 +112,7 @@ def analyze_upload(uploaded, manifest, vectors, models) -> dict:
 
 
 def show_spectrogram(analysis: dict) -> None:
+    """Display an already rendered Mel PNG and offer the same bytes for download."""
     image = analysis.get("mel_spectrogram_png")
     if image is None:
         return
@@ -87,6 +128,7 @@ def show_spectrogram(analysis: dict) -> None:
 
 
 def show_metric_row(measurements: list) -> None:
+    """Render one row of (label, formatted value, tooltip explanation) tuples."""
     columns = st.columns(len(measurements))
     for index, measurement in enumerate(measurements):
         label, value, explanation = measurement
@@ -94,12 +136,19 @@ def show_metric_row(measurements: list) -> None:
 
 
 def show_audio_characteristics(analysis: dict) -> None:
+    """Format original-file properties and excerpt-derived measurements for display.
+
+    Original duration/rate/channels describe the file. Other measurements describe
+    the prepared analysis excerpt. Zero/None tempo means unavailable, None peak
+    means silence, and all other values are shown with their relevant units.
+    """
     st.subheader("Audio characteristics")
     duration_seconds = round(analysis["duration"])
     duration_label = f"{duration_seconds // 60}:{duration_seconds % 60:02d}"
     channel_names = {1: "Mono", 2: "Stereo"}
     channel_label = channel_names.get(analysis["channels"], f"{analysis['channels']} channels")
 
+    # Format unavailable estimates explicitly instead of presenting them as measured zeros.
     tempo_label = "Unavailable"
     if analysis["tempo_bpm"]:
         tempo_label = f"{analysis['tempo_bpm']:.0f} BPM"
@@ -142,6 +191,7 @@ def show_audio_characteristics(analysis: dict) -> None:
 
 
 def show_analysis_result(analysis: dict) -> None:
+    """Present the genre vote, then the spectrogram, then numerical characteristics."""
     with st.container(border=True):
         st.metric("Predicted genre", analysis["genre"].title())
         st.caption("Estimated from genre votes among the nearest catalog audio features; not a calibrated classifier.")
@@ -150,9 +200,16 @@ def show_analysis_result(analysis: dict) -> None:
 
 
 def main() -> None:
+    """Coordinate the browser page without exposing catalog search controls.
+
+    Uploads are analyzed via a temp file; the sample uses its existing local path.
+    Both call the same analyze_audio workflow and produce the same result schema.
+    Known errors appear in the page, and successful results persist across reruns.
+    """
     configure_page()
     config = load_config(PROJECT_DIR / "config" / "default.yaml")
     manifest, vectors, models = load_catalog(config)
+    # Step 1: obtain either user-supplied bytes or the optional bundled recording.
     source = st.radio(
         "Choose your audio",
         ["Upload a song", "Try sample song"],
@@ -177,11 +234,13 @@ def main() -> None:
             st.info("The sample song is not available yet. You can still upload your own audio.")
 
     update_upload_state(audio_bytes)
+    # Step 2: play the selected file. This preview is the full recording, not the excerpt.
     if audio_bytes is not None:
         st.caption("Audio preview")
         st.audio(audio_bytes)
 
     if st.button("Analyze audio", type="primary", disabled=audio_bytes is None):
+        # Step 3: analysis is deliberately button-triggered, not rerun on every widget change.
         try:
             with st.spinner("Analyzing your audio..."):
                 if source == "Upload a song":
@@ -194,6 +253,7 @@ def main() -> None:
             st.error(str(error))
 
     if "analysis" in st.session_state:
+        # Step 4: render the saved result; displaying it does not run extraction again.
         show_analysis_result(st.session_state["analysis"])
 
 

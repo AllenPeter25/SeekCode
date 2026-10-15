@@ -1,3 +1,9 @@
+"""Compare basic feature groups using the same raw table and catalog labels.
+
+This earlier comparison covers MFCC/spectral/energy. pipeline.run_ablations is
+the configuration-driven comparison that also includes rhythm and mean pooling.
+"""
+
 from pathlib import Path
 
 import pandas as pd
@@ -13,6 +19,12 @@ def compare_feature_groups(
     k: int = 10,
     pca_components: int = 40,
 ) -> pd.DataFrame:
+    """Fit/evaluate six basic representations and save detailed comparison reports.
+
+    Each tuple contains enabled prefixes and an optional PCA component count.
+    No-PCA comparisons isolate feature-group effects; all_pca separately measures
+    reduction plus whitening. Equal group weights are used throughout.
+    """
     experiments = {
         "mfcc_only": (("mfcc",), None),
         "spectral_only": (("spectral",), None),
@@ -25,6 +37,7 @@ def compare_feature_groups(
     records = []
 
     for name, (groups, components) in experiments.items():
+        # Select the same ID column and just the groups named by this experiment.
         columns = ["track_id"]
         for group in groups:
             group_columns = [column for column in features.columns if column.startswith(f"{group}_")]
@@ -33,6 +46,7 @@ def compare_feature_groups(
             columns.extend(group_columns)
 
         vectors, _ = build_feature_space(features[columns], n_components=components)
+        # The fitted catalog is also evaluated here; these are descriptive ablations.
         results = evaluate_precision_at_k(vectors, manifest, k)
         results = add_random_baseline(results)
         save_evaluation(results, k, output_dir / name)

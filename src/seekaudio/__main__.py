@@ -1,3 +1,10 @@
+"""CLI entrypoint for `python -m src.seekaudio` (or the installed seekaudio command).
+
+Flow: define accepted arguments -> parse user command -> load YAML settings
+-> dispatch to cli_commands.py -> show readable errors for known failures.
+No audio processing or model fitting takes place in argument parsing itself.
+"""
+
 import argparse
 
 from .config import load_config
@@ -8,6 +15,11 @@ from .cli_commands import (
 
 
 def create_parser() -> argparse.ArgumentParser:
+    """Define stage commands and optional path/settings overrides.
+
+    Unspecified options remain None so handlers can fall back to YAML defaults.
+    --config belongs to each subcommand, e.g. `run --config config/default.yaml`.
+    """
     parser = argparse.ArgumentParser(prog="seekaudio")
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -67,6 +79,7 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def execute_command(args, config) -> None:
+    """Route a parsed command to the matching handler using the loaded configuration."""
     if args.command == "ingest":
         run_ingest(args, config)
     elif args.command == "extract":
@@ -86,6 +99,11 @@ def execute_command(args, config) -> None:
 
 
 def main(arguments: list[str] | None = None) -> None:
+    """Run the CLI; an explicit argument list supports testing without a shell.
+
+    None reads sys.argv through argparse. parser.error reports a concise error
+    and exits with status 2; unexpected errors still propagate for diagnosis.
+    """
     parser = create_parser()
     args = parser.parse_args(arguments)
     try:
@@ -96,4 +114,5 @@ def main(arguments: list[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
+    # Execute only when launched as a program; imports can use main without running it.
     main()
